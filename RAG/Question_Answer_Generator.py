@@ -1,12 +1,12 @@
 import fitz  # For PDF text extraction
 import json
-from transformers import pipeline
 from nltk.tokenize import sent_tokenize
 import nltk
+from langchain_community.llms.ollama import Ollama  # Assuming this is the library for TinyLlama
+from tqdm import tqdm  # For progress bar
 
 # Download required NLTK data
 nltk.download('punkt')
-nltk.download('punkt_tab')  # Fix for missing punkt_tab error
 
 # Step 1: Extract text from PDF
 def extract_text_from_pdf(pdf_path):
@@ -30,26 +30,33 @@ def split_text_by_context(text, max_chunk_size=512):
         chunks.append(" ".join(temp_chunk))
     return chunks
 
-# Step 3: Generate QA pairs using a local model
-def generate_qa_pairs(context_chunks):
-    qa_pairs = []
-    qa_pipeline = pipeline("text2text-generation", model="t5-small", device=0)  # Replace with your model
+# Step 3: Extract answers only
+def extract_answers_only(context_chunks):
+    # Placeholder logic for extracting answers.
+    # Replace this with logic that detects specific context and extracts answers.
+    answers = []
     for chunk in context_chunks:
-        # Generate a question
-        question_prompt = f"Generate a question from this context: {chunk}"
-        question = qa_pipeline(question_prompt, max_length=50, num_return_sequences=1)[0]['generated_text']
-        
-        # Generate an answer
-        answer_prompt = f"Answer this question based on the context: {question}\nContext: {chunk}"
-        answer = qa_pipeline(answer_prompt, max_length=50, num_return_sequences=1)[0]['generated_text']
-        
-        qa_pairs.append({"question": question, "answer": answer})
+        # Extract answers (currently returns the chunk as the answer for demonstration).
+        answers.append(chunk.strip())
+    return [{"question": "", "answer": answer} for answer in answers]
+
+# Step 4: Generate questions using llama3.2:1b
+def generate_questions(qa_pairs):
+    # Set up llama3.2:1b with num_threads=8
+    model = Ollama(model="llama3.2:1b", num_thread=8)
+    for qa_pair in tqdm(qa_pairs, desc="Generating Questions"):
+        if qa_pair["question"] == "":
+            # Prompt llama3.2 to generate a question
+            context = qa_pair["answer"]
+            prompt = f"Based on the following context, frame a question: {context}\nOnly provide the question without any additional text or confirmation."
+            response = model.invoke(prompt).strip()  # Ensure only the question is returned
+            qa_pair["question"] = response
     return qa_pairs
 
-# Step 4: Save QA pairs to a JSON file
-def save_to_json(qa_pairs, output_path):
+# Step 5: Save QA pairs to a JSON file
+def save_to_json(data, output_path):
     with open(output_path, 'w') as file:
-        json.dump(qa_pairs, file, indent=4)
+        json.dump(data, file, indent=4)
 
 # Main Function
 def main(pdf_path, output_path):
@@ -61,12 +68,20 @@ def main(pdf_path, output_path):
     print("Splitting text into contextual chunks...")
     chunks = split_text_by_context(text)
     
-    # Generate QA pairs
-    print("Generating QA pairs...")
-    qa_pairs = generate_qa_pairs(chunks)
+    # Extract answers only
+    print("Extracting answers from the PDF...")
+    qa_pairs = extract_answers_only(chunks)
     
-    # Save the output to JSON
-    print(f"Saving QA pairs to {output_path}...")
+    # Save intermediate JSON with answers only
+    print(f"Saving intermediate answers to {output_path}...")
+    save_to_json(qa_pairs, output_path)
+    
+    # Generate questions using llama3.2:1b
+    print("Generating questions using llama3.2:1b...")
+    qa_pairs = generate_questions(qa_pairs)
+    
+    # Save final JSON with questions and answers
+    print(f"Saving final QA pairs to {output_path}...")
     save_to_json(qa_pairs, output_path)
     print("Process complete!")
 
