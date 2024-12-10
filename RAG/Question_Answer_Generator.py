@@ -1,4 +1,5 @@
 import fitz  # For PDF text extraction
+import os
 import json
 from nltk.tokenize import sent_tokenize
 import nltk
@@ -43,7 +44,7 @@ def extract_answers_only(context_chunks):
 # Step 4: Generate questions using llama3.2:1b
 def generate_questions(qa_pairs):
     # Set up llama3.2:1b with num_threads=8
-    model = Ollama(model="llama3.2:1b", num_thread=8)
+    model = Ollama(model="llama3.2:1b", num_threads=8)
     for qa_pair in tqdm(qa_pairs, desc="Generating Questions"):
         if qa_pair["question"] == "":
             # Prompt llama3.2 to generate a question
@@ -58,10 +59,10 @@ def save_to_json(data, output_path):
     with open(output_path, 'w') as file:
         json.dump(data, file, indent=4)
 
-# Main Function
-def main(pdf_path, output_path):
+# Step 6: Process a single PDF
+def process_pdf(pdf_path, output_path):
     # Extract text from the PDF
-    print("Extracting text from PDF...")
+    print(f"Extracting text from {pdf_path}...")
     text = extract_text_from_pdf(pdf_path)
     
     # Split text into chunks
@@ -69,26 +70,35 @@ def main(pdf_path, output_path):
     chunks = split_text_by_context(text)
     
     # Extract answers only
-    print("Extracting answers from the PDF...")
+    print("Extracting answers...")
     qa_pairs = extract_answers_only(chunks)
     
     # Save intermediate JSON with answers only
-    print(f"Saving intermediate answers to {output_path}...")
     save_to_json(qa_pairs, output_path)
     
     # Generate questions using llama3.2:1b
-    print("Generating questions using llama3.2:1b...")
+    print("Generating questions...")
     qa_pairs = generate_questions(qa_pairs)
     
     # Save final JSON with questions and answers
-    print(f"Saving final QA pairs to {output_path}...")
     save_to_json(qa_pairs, output_path)
-    print("Process complete!")
+    print(f"Finished processing {pdf_path}. Output saved to {output_path}.")
 
-# Run the Script
-if __name__ == "__main__":
-    # Specify your input PDF and output JSON file paths
-    pdf_path = "/home/understressengineer/programming/Deep-Learning-Techniques-SRM/RAG/data/laws.pdf"  # Replace with your PDF file path
-    output_path = "/home/understressengineer/programming/Deep-Learning-Techniques-SRM/RAG/qa_pairs.json"  # Replace with your desired output path
+# Main Function to process all PDFs in a directory
+def main(input_dir, output_dir):
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
     
-    main(pdf_path, output_path)
+    # Process each PDF file in the directory
+    pdf_files = [f for f in os.listdir(input_dir) if f.endswith('.pdf')]
+    for pdf_file in tqdm(pdf_files, desc="Processing PDFs"):
+        pdf_path = os.path.join(input_dir, pdf_file)
+        output_path = os.path.join(output_dir, f"{os.path.splitext(pdf_file)[0]}_qa_pairs.json")
+        process_pdf(pdf_path, output_path)
+
+if __name__ == "__main__":
+    # Specify your input directory and output directory
+    input_dir = "/home/understressengineer/programming/Deep-Learning-Techniques-SRM/RAG/data"  # Directory containing PDFs
+    output_dir = "/home/understressengineer/programming/Deep-Learning-Techniques-SRM/RAG/output"  # Directory to save outputs
+    
+    main(input_dir, output_dir)
