@@ -44,7 +44,7 @@ def extract_answers_only(context_chunks):
 # Step 4: Generate questions using llama3.2:1b
 def generate_questions(qa_pairs):
     # Set up llama3.2:1b with num_threads=8
-    model = Ollama(model="llama3.2:1b", num_threads=8)
+    model = Ollama(model="llama3.2:1b", num_thread=8)
     for qa_pair in tqdm(qa_pairs, desc="Generating Questions"):
         if qa_pair["question"] == "":
             # Prompt llama3.2 to generate a question
